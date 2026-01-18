@@ -154,7 +154,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -529.86, y: -297}
+  m_AnchoredPosition: {x: -529.86, y: -328}
   m_SizeDelta: {x: 798.05, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1904395
@@ -192,9 +192,7 @@ MonoBehaviour:
     [C] To open regular settings panel
 
     [Q] To close
-    all panels
-
-    [F] To emergency clear graph'
+    all panels'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -5454,6 +5452,13 @@ MonoBehaviour:
   plusSprite: {fileID: 0}
   deleteSprite: {fileID: 0}
   gridCellSize: 6
+  fixedDelta: 0.02
+  solverIterations: 2
+  restLength: 3.5
+  centerForce: 0.5
+  repulsionStrength: 12
+  springStrength: 6
+  cellSize: 6
 --- !u!4 &681778180
 Transform:
   m_ObjectHideFlags: 0
@@ -7366,7 +7371,6 @@ GameObject:
   - component: {fileID: 992859820}
   - component: {fileID: 992859822}
   - component: {fileID: 992859821}
-  - component: {fileID: 992859823}
   m_Layer: 5
   m_Name: Text (TMP)
   m_TagString: Untagged
@@ -7390,8 +7394,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -13.180008, y: 0}
-  m_SizeDelta: {x: 26.36, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &992859821
 MonoBehaviour:
@@ -7449,7 +7453,7 @@ MonoBehaviour:
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
-  m_HorizontalAlignment: 4
+  m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
@@ -7494,19 +7498,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 992859819}
   m_CullTransparentMesh: 1
---- !u!114 &992859823
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 992859819}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5bb586fcb7fa7c41ad93126679f8232, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LocalizedText
-  localizationKey: generate
 --- !u!1 &1050190374
 GameObject:
   m_ObjectHideFlags: 0
@@ -8127,7 +8118,7 @@ MonoBehaviour:
   damping: 0.8
   minDistance: 5
   maxVelocity: 10
-  velocityThreshold: 0.1
+  velocityThreshold: 0.6
   nodeSpawnDelay: 0.005
   uiCanvas: {fileID: 494506736}
   rowsInput: {fileID: 1917067048}
@@ -8173,6 +8164,13 @@ MonoBehaviour:
   plusSprite: {fileID: 21300000, guid: 673486440d07f5249afffd6f18670613, type: 3}
   deleteSprite: {fileID: 21300000, guid: e0f59ce438d1aa6478f4b22e9cfaaffd, type: 3}
   gridCellSize: 6
+  fixedDelta: 0.02
+  solverIterations: 2
+  restLength: 3.5
+  centerForce: 0.5
+  repulsionStrength: 12
+  springStrength: 6
+  cellSize: 6
 --- !u!1 &1106238133
 GameObject:
   m_ObjectHideFlags: 0
@@ -12335,6 +12333,13 @@ MonoBehaviour:
   plusSprite: {fileID: 0}
   deleteSprite: {fileID: 0}
   gridCellSize: 6
+  fixedDelta: 0.02
+  solverIterations: 2
+  restLength: 3.5
+  centerForce: 0.5
+  repulsionStrength: 12
+  springStrength: 6
+  cellSize: 6
 --- !u!4 &1703113502
 Transform:
   m_ObjectHideFlags: 0

@@ -12,13 +12,19 @@ public class ErrorPopup : MonoBehaviour
 
     private void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         Instance = this;
 
         if (panel != null)
             panel.SetActive(false);
 
         if (closeButton != null)
-            closeButton.onClick.AddListener(() => gameObject.SetActive(false));
+            closeButton.onClick.AddListener(Close);
     }
 
     public void Show(string message)
@@ -28,5 +34,11 @@ public class ErrorPopup : MonoBehaviour
 
         if (panel != null)
             panel.SetActive(true);
+    }
+
+    private void Close()
+    {
+        if (panel != null)
+            panel.SetActive(false);
     }
 }

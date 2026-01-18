@@ -4,6 +4,7 @@ using TMPro;
 using System;
 using System.Collections.Generic;
 using KlotskiDecisionTree;
+using UnityEngine.EventSystems;
 
 public class DecisionTreeUIController : MonoBehaviour
 {
@@ -42,6 +43,10 @@ public class DecisionTreeUIController : MonoBehaviour
     [SerializeField] private GameObject previewCellPrefab;
     [SerializeField] private GameObject previewBlockPrefab;
     [SerializeField] private Button closePreviewButton;
+
+    [SerializeField] private GameObject graphSettingsPanel;
+    [SerializeField] private GameObject settingsPanel;
+    [SerializeField] private TMP_Dropdown languageDropdown;
 
     private readonly List<GameObject> previewCells = new List<GameObject>();
     private readonly List<GameObject> previewBlocks = new List<GameObject>();
@@ -87,6 +92,13 @@ public class DecisionTreeUIController : MonoBehaviour
         exitWidthInput?.onEndEdit.AddListener(_ => UpdateVisualizerConfig());
 
         closePreviewButton.onClick.AddListener(() => HidePreview());
+
+        languageDropdown.onValueChanged.AddListener(OnLanguageDropdownChanged);
+    }
+
+    void Start()
+    {
+        InitLanguageDropdown();
     }
 
     public void Init(DecisionTreeVisualizer v)
@@ -247,10 +259,19 @@ public class DecisionTreeUIController : MonoBehaviour
         int rows = board.Rows;
         int cols = board.Columns;
 
-        float width = previewBoardContainer.rect.width;
+        float width  = previewBoardContainer.rect.width;
         float height = previewBoardContainer.rect.height;
-        float cellWidth = width / cols;
-        float cellHeight = height / rows;
+
+        if (rows <= 0 || cols <= 0) return;
+
+        // === КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ===
+        float cellSize = Mathf.Min(width / cols, height / rows);
+
+        float gridWidth  = cellSize * cols;
+        float gridHeight = cellSize * rows;
+
+        float offsetX = (width  - gridWidth)  * 0.5f;
+        float offsetY = (height - gridHeight) * 0.5f;
 
         Color tileLight = new Color(0.51f, 0.46f, 0.48f);
         Color tileDark  = new Color(0.38f, 0.34f, 0.36f);
@@ -270,17 +291,23 @@ public class DecisionTreeUIController : MonoBehaviour
         if (previewPanel != null && !previewPanel.activeSelf)
             previewPanel.SetActive(true);
 
+        // === клетки ===
         for (int y = 0; y < rows; y++)
         {
             for (int x = 0; x < cols; x++)
             {
                 GameObject cell = Instantiate(previewCellPrefab, previewBoardContainer);
                 var rect = cell.GetComponent<RectTransform>();
+
                 rect.anchorMin = Vector2.zero;
                 rect.anchorMax = Vector2.zero;
-                rect.pivot = Vector2.zero;
-                rect.sizeDelta = new Vector2(cellWidth, cellHeight);
-                rect.anchoredPosition = new Vector2(x * cellWidth, y * cellHeight);
+                rect.pivot     = Vector2.zero;
+
+                rect.sizeDelta = new Vector2(cellSize, cellSize);
+                rect.anchoredPosition = new Vector2(
+                    offsetX + x * cellSize,
+                    offsetY + y * cellSize
+                );
 
                 var img = cell.GetComponent<UnityEngine.UI.Image>();
                 if (img != null)
@@ -290,15 +317,25 @@ public class DecisionTreeUIController : MonoBehaviour
             }
         }
 
+        // === блоки ===
         foreach (var block in board.Blocks)
         {
             GameObject blockGO = Instantiate(previewBlockPrefab, previewBoardContainer);
             var rect = blockGO.GetComponent<RectTransform>();
+
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.zero;
-            rect.pivot = Vector2.zero;
-            rect.sizeDelta = new Vector2(block.Width * cellWidth, block.Height * cellHeight);
-            rect.anchoredPosition = new Vector2(block.X * cellWidth, block.Y * cellHeight);
+            rect.pivot     = Vector2.zero;
+
+            rect.sizeDelta = new Vector2(
+                block.Width  * cellSize,
+                block.Height * cellSize
+            );
+
+            rect.anchoredPosition = new Vector2(
+                offsetX + block.X * cellSize,
+                offsetY + block.Y * cellSize
+            );
 
             var img = blockGO.GetComponent<UnityEngine.UI.Image>();
             if (img != null)
@@ -309,7 +346,10 @@ public class DecisionTreeUIController : MonoBehaviour
                 }
                 else
                 {
-                    int colorIndex = (block.Id >= 0) ? (block.Id % blockColors.Length) : 0;
+                    int colorIndex = (block.Id >= 0)
+                        ? block.Id % blockColors.Length
+                        : 0;
+
                     img.color = blockColors[colorIndex];
                 }
             }
@@ -317,4 +357,107 @@ public class DecisionTreeUIController : MonoBehaviour
             previewBlocks.Add(blockGO);
         }
     }
+
+
+
+
+
+    void Update()
+    {
+        HandleKeyboardShortcuts();
+    }
+
+    private void HandleKeyboardShortcuts()
+    {   
+        if (IsTyping()) return;
+
+        if (Input.GetKeyDown(KeyCode.Z))
+        {
+            TogglePanelWithAnimation(graphSettingsPanel);
+        }
+
+        if (Input.GetKeyDown(KeyCode.X))
+        {
+            TogglePanelWithAnimation(configPanel);
+        }
+
+        if (Input.GetKeyDown(KeyCode.C))
+        {
+            TogglePanelWithAnimation(settingsPanel);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            CloseAllPanels();
+        }
+    }
+
+    private void TogglePanel(GameObject panel)
+    {
+        if (panel == null) return;
+
+        bool newState = !panel.activeSelf;
+        panel.SetActive(newState);
+    }
+
+    private void TogglePanelWithAnimation(GameObject panel)
+    {
+        if (panel == null) return;
+
+        var animator = panel.GetComponent<Animator>();
+        if (animator == null) return;
+
+        bool isOpen = animator.GetBool("IsOpen");
+        animator.SetBool("IsOpen", !isOpen);
+    }
+
+    private void SetPanelState(GameObject panel, bool open)
+    {
+        if (panel == null) return;
+
+        var animator = panel.GetComponent<Animator>();
+        if (animator != null)
+        {
+            animator.SetBool("IsOpen", open);
+        }
+    }
+
+    private void CloseAllPanels()
+    {
+        SetPanelState(graphSettingsPanel, false);
+        SetPanelState(configPanel, false);
+        SetPanelState(settingsPanel, false);
+        
+        if (previewPanel != null)
+            previewPanel.SetActive(false);
+    }
+
+    private bool IsTyping()
+    {
+        return EventSystem.current != null &&
+            EventSystem.current.currentSelectedGameObject != null &&
+            EventSystem.current.currentSelectedGameObject.GetComponent<TMP_InputField>() != null;
+    }
+
+    private void OnLanguageDropdownChanged(int index)
+    {
+        LocalizationManager.Language lang =
+            (LocalizationManager.Language)index;
+
+        LocalizationManager.Instance.SetLanguage(lang);
+    }
+
+    private void InitLanguageDropdown()
+    {
+        if (languageDropdown == null || LocalizationManager.Instance == null)
+            return;
+
+        languageDropdown.onValueChanged.RemoveListener(OnLanguageDropdownChanged);
+
+        languageDropdown.value = (int)LocalizationManager.Instance.CurrentLanguage;
+        languageDropdown.RefreshShownValue();
+
+        languageDropdown.onValueChanged.AddListener(OnLanguageDropdownChanged);
+    }
+
 }

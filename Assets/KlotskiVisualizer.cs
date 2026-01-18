@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using System.Collections.Generic;
 using KlotskiDecisionTree;
 using TMPro;
+using System.Collections;
 using System.Linq;
 using UnityEngine.EventSystems;
 
@@ -10,17 +11,16 @@ public class DecisionTreeVisualizer : MonoBehaviour
 {
     public DecisionTreeUIController ui;
 
-    //graph physics settings
     [SerializeField] private GameObject nodePrefab;
     [SerializeField] private Material lineMaterial;
-    [SerializeField] private float repulsionForce = 200f;   //forces pushing nodes away from each other
-    [SerializeField] private float springForce = 50f;   //force pulling connected nodes together
-    [SerializeField] private float damping = 0.95f;     //damping to stabilize simulation
-    [SerializeField] private float minDistance = 4f;    //minimum distance between nodes
-    [SerializeField] private float maxVelocity = 0.3f;  //maximum velocity cap
-    [SerializeField] private float velocityThreshold = 0.1f;    //threshold for stopping simulation
+    [SerializeField] private float repulsionForce = 200f;
+    [SerializeField] private float springForce = 50f;
+    [SerializeField] private float damping = 0.95f;
+    [SerializeField] private float minDistance = 4f;
+    [SerializeField] private float maxVelocity = 0.3f;
+    [SerializeField] private float velocityThreshold = 0.1f;
+    [SerializeField] private float nodeSpawnDelay = 0.01f;
 
-    //ui elements
     [SerializeField] private Canvas uiCanvas;
     [SerializeField] private TMP_InputField rowsInput;
     [SerializeField] private TMP_InputField columnsInput;
@@ -30,14 +30,12 @@ public class DecisionTreeVisualizer : MonoBehaviour
     [SerializeField] private TMP_InputField winningYInput;
     [SerializeField] private TMP_InputField exitWidthInput;
 
-    //board preview panel
     [SerializeField] private RectTransform boardPreviewContainer;
     [SerializeField] private GameObject cellPrefab;
     [SerializeField] private GameObject blockPreviewPrefab;
     private readonly List<GameObject> cellObjects = new List<GameObject>();
     private readonly List<GameObject> blockObjects = new List<GameObject>();
 
-    //graph setting config
     [SerializeField] private GameObject graphSettingPanel;
     [SerializeField] private Button graphSettingsButton;
     [SerializeField] private Slider repulsionForceScrollBar;
@@ -47,7 +45,6 @@ public class DecisionTreeVisualizer : MonoBehaviour
     [SerializeField] private Slider maxVelocityScrollBar;
     [SerializeField] private Slider velocityTresholdScrollBar;
 
-    //board config
     public BoardConfig boardConfig = new BoardConfig
     {
         rows = 4,
@@ -98,6 +95,190 @@ public class DecisionTreeVisualizer : MonoBehaviour
     private bool deleteBlockMode = false;
     private Vector2Int? firstBlockPoint = null;
 
+    [SerializeField] public Image cursorIcon;
+    [SerializeField] public Sprite plusSprite;
+    [SerializeField] public Sprite deleteSprite;
+
+
+    private HashSet<(GraphNode from, GraphNode to)> createdEdges = new HashSet<(GraphNode, GraphNode)>();
+    private Dictionary<GraphNode, List<GraphNode>> nodeParents = new Dictionary<GraphNode, List<GraphNode>>();
+
+    private IEnumerator VisualizeDecisionTreeGradually(Board initialBoard)
+    {
+        DecisionGraphBuilder builder = new DecisionGraphBuilder();
+        GraphNode root = builder.BuildGraph(initialBoard);
+
+        isStabilized = false;
+
+        var createdNodes = new HashSet<GraphNode>();
+        var queuedNodes = new Queue<GraphNode>();
+
+        queuedNodes.Enqueue(root);
+        createdNodes.Add(root);
+
+        CreateNodeObject(root);
+
+        while (queuedNodes.Count > 0)
+        {
+            var node = queuedNodes.Dequeue();
+
+            foreach (var (child, _) in node.Children)
+            {
+                CreateEdge(node, child);
+
+                if (!createdNodes.Contains(child))
+                {
+                    createdNodes.Add(child);
+
+                    CreateNodeObject(child, node);
+                    queuedNodes.Enqueue(child);
+
+                    yield return new WaitForSeconds(nodeSpawnDelay);
+                }
+            }
+        }
+    }
+
+    private Vector3 GetFallbackPosition(GraphNode parent)
+    {
+        if (parent != null && nodeObjects.TryGetValue(parent, out var parentObj))
+        {
+            return parentObj.transform.position +
+                Random.onUnitSphere * minDistance;
+        }
+
+        return Random.insideUnitSphere * 2f;
+    }
+
+    private void CreateNodeObject(GraphNode node, GraphNode fallbackParent = null)
+    {
+        if (nodeObjects.ContainsKey(node))
+            return;
+
+        Vector3 spawnPos;
+
+        if (nodeParents.TryGetValue(node, out var parents))
+        {
+            Vector3 sum = Vector3.zero;
+            int count = 0;
+
+            foreach (var parent in parents)
+            {
+                if (nodeObjects.TryGetValue(parent, out var parentObj))
+                {
+                    sum += parentObj.transform.position;
+                    count++;
+                }
+            }
+
+            if (count > 0)
+            {
+                spawnPos = sum / count;
+                spawnPos += Random.insideUnitSphere * minDistance * 0.3f;
+            }
+            else
+            {
+                spawnPos = GetFallbackPosition(fallbackParent);
+            }
+        }
+        else
+        {
+            spawnPos = GetFallbackPosition(fallbackParent);
+        }
+
+        GameObject nodeObj = Instantiate(nodePrefab, spawnPos, Quaternion.identity);
+        nodeObj.name = $"Node_{node.StateHash.Substring(0, 8)}";
+
+        nodeObjects[node] = nodeObj;
+        velocities[node] = Vector3.zero;
+    }
+
+    private void CreateEdge(GraphNode from, GraphNode to)
+    {
+        if (createdEdges.Contains((from, to)))
+            return;
+
+        createdEdges.Add((from, to));
+
+        if (!nodeParents.TryGetValue(to, out var parents))
+        {
+            parents = new List<GraphNode>();
+            nodeParents[to] = parents;
+        }
+
+        if (!parents.Contains(from))
+            parents.Add(from);
+
+        if (!nodeObjects.ContainsKey(from) || !nodeObjects.ContainsKey(to))
+            return;
+
+        GameObject edgeObj = new GameObject(
+            $"Edge_{from.StateHash.Substring(0, 8)}_to_{to.StateHash.Substring(0, 8)}"
+        );
+
+        LineRenderer line = edgeObj.AddComponent<LineRenderer>();
+        line.material = lineMaterial;
+        line.startWidth = 0.05f;
+        line.endWidth = 0.05f;
+        line.positionCount = 2;
+        line.startColor = Color.white;
+        line.endColor = Color.white;
+
+        edges.Add((from, to, line));
+    }
+
+    ////////
+    
+    private Dictionary<Vector3Int, List<GraphNode>> spatialGrid = new Dictionary<Vector3Int, List<GraphNode>>();
+    [SerializeField] private float gridCellSize = 6f;
+
+    private void BuildSpatialGrid()
+    {
+        spatialGrid.Clear();
+
+        foreach (var kv in nodeObjects)
+        {
+            Vector3 pos = kv.Value.transform.position;
+            Vector3Int cell = new Vector3Int(
+                Mathf.FloorToInt(pos.x / gridCellSize),
+                Mathf.FloorToInt(pos.y / gridCellSize),
+                Mathf.FloorToInt(pos.z / gridCellSize)
+            );
+
+            if (!spatialGrid.TryGetValue(cell, out var list))
+            {
+                list = new List<GraphNode>();
+                spatialGrid[cell] = list;
+            }
+
+            list.Add(kv.Key);
+        }
+    }
+
+    private IEnumerable<GraphNode> GetNearbyNodes(GraphNode node)
+    {
+        Vector3 pos = nodeObjects[node].transform.position;
+        Vector3Int cell = new Vector3Int(
+            Mathf.FloorToInt(pos.x / gridCellSize),
+            Mathf.FloorToInt(pos.y / gridCellSize),
+            Mathf.FloorToInt(pos.z / gridCellSize)
+        );
+
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    Vector3Int c = cell + new Vector3Int(dx, dy, dz);
+                    if (spatialGrid.TryGetValue(c, out var list))
+                    {
+                        foreach (var n in list)
+                            yield return n;
+                    }
+                }
+    }
+
+
+
     void Start()
     {
         ui.Init(this);
@@ -111,20 +292,22 @@ public class DecisionTreeVisualizer : MonoBehaviour
         SubscribeToGraphSettingsPanelEvents();
 
         Board initialBoard = CreateBoardFromConfig();
-        VisualizeDecisionTree(initialBoard);
+        StartCoroutine(VisualizeDecisionTreeGradually(initialBoard));
+        isStabilized = false;
     }
 
     private void OnGenerateGraph()
-    {
+    {   
         if (!ValidateBoardConfig(out var errors))
         {
             ErrorPopup.Instance?.Show("Errors:\n" + string.Join("\n", errors));
             return;
         }
 
+        StopAllCoroutines();
         ClearGraph();
         var board = CreateBoardFromConfig();
-        VisualizeDecisionTree(board);
+        StartCoroutine(VisualizeDecisionTreeGradually(board));
         isStabilized = false;
     }
 
@@ -172,7 +355,7 @@ public class DecisionTreeVisualizer : MonoBehaviour
         ClearGraph();
         Board initialBoard = CreateBoardFromConfig();
         VisualizeDecisionTree(initialBoard);
-        isStabilized = false; //reset stabilization for new graph
+        isStabilized = false;
     }
 
     private void ClearGraph()
@@ -189,6 +372,8 @@ public class DecisionTreeVisualizer : MonoBehaviour
         nodeObjects.Clear();
         velocities.Clear();
         edges.Clear();
+        nodeParents.Clear();    //nado
+        createdEdges.Clear();   //nado
     }
 
     private Board CreateBoardFromConfig()
@@ -223,7 +408,6 @@ public class DecisionTreeVisualizer : MonoBehaviour
         var queue = new Queue<GraphNode>();
         queue.Enqueue(root);
 
-        //random initial positions in a 3D space
         while (queue.Count > 0)
         {
             var node = queue.Dequeue();
@@ -284,12 +468,26 @@ public class DecisionTreeVisualizer : MonoBehaviour
 
     private void OnValidate()
     {
-        //restart simulation if properties change in Inspector
         isStabilized = false;
     }
 
+    private void EmergencyClearGraph()
+    {
+        StopAllCoroutines();
+        ClearGraph();
+        isStabilized = false;
+        selectedNode = null;
+    }
+
     private void Update()
-    {   
+    {      
+        if (Input.GetKeyDown(KeyCode.F))
+        {
+            EmergencyClearGraph();
+            return;
+        }
+
+        UpdateCursorIcon();
         HandleNodeClick();
         HandleBlockEditingClicks();
 
@@ -299,14 +497,12 @@ public class DecisionTreeVisualizer : MonoBehaviour
             return;
         }
 
-        //calculate forces
         var forces = new Dictionary<GraphNode, Vector3>();
         foreach (var node in nodeObjects.Keys)
         {
             forces[node] = Vector3.zero;
         }
 
-        //repulsion between all pairs of nodes
         var nodes = new List<GraphNode>(nodeObjects.Keys);
         for (int j = 0; j < nodes.Count; j++)
         {
@@ -318,7 +514,7 @@ public class DecisionTreeVisualizer : MonoBehaviour
                 Vector3 pos2 = nodeObjects[node2].transform.position;
                 Vector3 delta = pos1 - pos2;
                 float distance = delta.magnitude;
-                if (distance < 0.01f) distance = 0.01f; //avoid division by zero
+                if (distance < 0.01f) distance = 0.01f;
                 if (distance < minDistance)
                 {
                     float forceMagnitude = repulsionForce * (1f / distance);
@@ -329,7 +525,6 @@ public class DecisionTreeVisualizer : MonoBehaviour
             }
         }
 
-        //attraction along edges
         foreach (var (from, to, _) in edges)
         {
             Vector3 pos1 = nodeObjects[from].transform.position;
@@ -344,7 +539,6 @@ public class DecisionTreeVisualizer : MonoBehaviour
             }
         }
 
-        //update positions
         foreach (var node in nodeObjects.Keys)
         {
             Vector3 force = forces[node];
@@ -354,7 +548,6 @@ public class DecisionTreeVisualizer : MonoBehaviour
             nodeObjects[node].transform.position += velocities[node] * Time.deltaTime;
         }
 
-        //check for stabilization
         float totalVelocity = 0f;
         foreach (var vel in velocities.Values)
         {
@@ -375,27 +568,19 @@ public class DecisionTreeVisualizer : MonoBehaviour
 
     private void CreateGrid(RectTransform container, int rows, int cols, List<GameObject> cellList, GameObject cellPrefab)
     {
-        // Clear existing
         foreach (var go in cellList) Destroy(go);
         cellList.Clear();
-
 
         float width = container.rect.width;
         float height = container.rect.height;
 
-
-        // enforce square cells
         float cellSize = Mathf.Min(width / cols, height / rows);
-
 
         float totalGridWidth = cellSize * cols;
         float totalGridHeight = cellSize * rows;
 
-
-        // center grid
         float offsetX = (width - totalGridWidth) * 0.5f;
         float offsetY = (height - totalGridHeight) * 0.5f;
-
 
         for (int r = 0; r < rows; r++)
         {
@@ -421,7 +606,6 @@ public class DecisionTreeVisualizer : MonoBehaviour
     {
         if (boardPreviewContainer == null) return;
             
-        //clear old elements
         foreach (var go in cellObjects) Destroy(go);
         foreach (var go in blockObjects) Destroy(go);
         cellObjects.Clear();
@@ -435,13 +619,11 @@ public class DecisionTreeVisualizer : MonoBehaviour
         float width = boardPreviewContainer.rect.width;
         float height = boardPreviewContainer.rect.height;
 
-        // единый квадратный размер клетки
         float cellSize = Mathf.Min(width / cols, height / rows);
 
         float gridWidth = cellSize * cols;
         float gridHeight = cellSize * rows;
 
-        // центрирование
         float offsetX = (width - gridWidth) * 0.5f;
         float offsetY = (height - gridHeight) * 0.5f;
 
@@ -483,7 +665,6 @@ public class DecisionTreeVisualizer : MonoBehaviour
             new Color(0.7f, 0.7f, 0.7f)     //grey
         };
 
-        //place blocks
         foreach (var block in boardConfig.blocks)
         {
             GameObject blockGO = Instantiate(blockPreviewPrefab, boardPreviewContainer);
@@ -501,11 +682,10 @@ public class DecisionTreeVisualizer : MonoBehaviour
                 //img.color = block.id == boardConfig.winningBlockId ? new Color(1f, 0.8f, 0.2f) : new Color(0.6f, 0.2f, 0.2f);
                 if (block.id == boardConfig.winningBlockId)
                 {
-                    img.color = new Color(1f, 0.95f, 0.3f); //yellow for winning block
+                    img.color = new Color(1f, 0.95f, 0.3f);
                 }
                 else
                 {
-                    //color by index
                     int colorIndex = block.id % blockColors.Length;
                     img.color = blockColors[colorIndex];
                 }
@@ -538,16 +718,15 @@ public class DecisionTreeVisualizer : MonoBehaviour
         }
     }
 
-    //graph settings panel
     private void ToggleGraphSettingsPanel()
     {
         if (graphSettingPanel == null)
             return;
 
-        bool newState = !graphSettingPanel.activeSelf;
+        /*bool newState = !graphSettingPanel.activeSelf;
         graphSettingPanel.SetActive(newState);
-
-        if (newState)
+        */
+        if (true)
         {
             repulsionForceScrollBar.value = Mathf.InverseLerp(0f, 500f, repulsionForce);
             springForceScrollBar.value = Mathf.InverseLerp(0f, 200f, springForce);
@@ -601,7 +780,7 @@ public class DecisionTreeVisualizer : MonoBehaviour
 
     private void OnDampingChanged(float value)
     {
-        damping = ReMap(value, 0f, 1f, 0.1f, 1f);
+        damping = ReMap(value, 0f, 1f, 0f, 1f);
         isStabilized = false;
     }
 
@@ -629,6 +808,11 @@ public class DecisionTreeVisualizer : MonoBehaviour
 
         int rows = boardConfig.rows;
         int cols = boardConfig.columns;
+
+        if (boardConfig.blocks == null || boardConfig.blocks.Count < 2)
+        {
+            errors.Add("Board must contain at least 2 blocks.");
+        }
 
         foreach (var block in boardConfig.blocks)
         {
@@ -688,16 +872,12 @@ public class DecisionTreeVisualizer : MonoBehaviour
         createBlockMode = true;
         deleteBlockMode = false;
         firstBlockPoint = null;
-
-        Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto); // можно заменить
     }
 
     private void StartDeleteBlockMode()
     {
         deleteBlockMode = true;
         createBlockMode = false;
-
-        Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto); // можно заменить
     }
 
     private void HandleBlockEditingClicks()
@@ -722,29 +902,23 @@ public class DecisionTreeVisualizer : MonoBehaviour
         int cols = boardConfig.columns;
         int rows = boardConfig.rows;
 
-        // квадратная клетка
         float cellSize = Mathf.Min(width / cols, height / rows);
 
         float gridWidth = cellSize * cols;
         float gridHeight = cellSize * rows;
 
-        // центрирование
         float offsetX = (width - gridWidth) * 0.5f;
         float offsetY = (height - gridHeight) * 0.5f;
 
-        // localPos приходит в координатах (0,0) в центре → переводим в левый нижний угол
         float adjustedX = localPos.x + width * 0.5f - offsetX;
         float adjustedY = localPos.y + height * 0.5f - offsetY;
 
-        // определяем клетку
         int x = Mathf.FloorToInt(adjustedX / cellSize);
         int y = Mathf.FloorToInt(adjustedY / cellSize);
 
-        // вне сетки
         if (x < 0 || y < 0 || x >= cols || y >= rows)
             return;
 
-        // ---------- УДАЛЕНИЕ ----------
         if (deleteBlockMode)
         {
             var block = boardConfig.blocks.FirstOrDefault(b =>
@@ -762,7 +936,6 @@ public class DecisionTreeVisualizer : MonoBehaviour
             return;
         }
 
-        // ---------- СОЗДАНИЕ ----------
         if (createBlockMode)
         {
             if (firstBlockPoint == null)
@@ -796,8 +969,7 @@ public class DecisionTreeVisualizer : MonoBehaviour
                 }
             }
 
-            int newId = boardConfig.blocks.Count > 0 ?
-                        boardConfig.blocks.Max(b => b.id) + 1 : 1;
+            int newId = GetNextAvailableBlockId();
 
             boardConfig.blocks.Add(new BlockConfig
             {
@@ -815,4 +987,43 @@ public class DecisionTreeVisualizer : MonoBehaviour
             Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
         }
     }
+
+    private int GetNextAvailableBlockId()
+    {
+        var usedIds = new HashSet<int>(boardConfig.blocks.Select(b => b.id));
+
+        int id = 1;
+        while (usedIds.Contains(id))
+            id++;
+
+        return id;
+    }
+
+    private void UpdateCursorIcon()
+    {
+        if (!createBlockMode && !deleteBlockMode)
+        {
+            cursorIcon.gameObject.SetActive(false);
+            return;
+        }
+
+        cursorIcon.gameObject.SetActive(true);
+
+        Vector2 pos;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            (RectTransform)uiCanvas.transform,
+            Input.mousePosition,
+            uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : uiCanvas.worldCamera,
+            out pos
+        );
+
+        Vector2 cursorOffset = new Vector2(20f, -20f);
+        cursorIcon.rectTransform.anchoredPosition = pos + cursorOffset;
+
+        if (createBlockMode)
+            cursorIcon.sprite = plusSprite;
+        else if (deleteBlockMode)
+            cursorIcon.sprite = deleteSprite;
+    }
+
 }
