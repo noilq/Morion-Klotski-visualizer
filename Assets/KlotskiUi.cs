@@ -10,7 +10,7 @@ public class DecisionTreeUIController : MonoBehaviour
 {
     public DecisionTreeVisualizer visualizer;
 
-    [Header("Board config controls")]
+
     public Button rowRemoveButton;
     public Button rowAddButton;
     public TMP_InputField rowsInput;
@@ -29,15 +29,15 @@ public class DecisionTreeUIController : MonoBehaviour
 
     public Button generateGraphButton;
 
-    [Header("Block editor")]
+
     public Button createBlockButton;
     public Button deleteBlockButton;
 
-    [Header("Menu")]
+
     public Button toggleMenuButton;
     public GameObject configPanel;
 
-    [Header("Preview panel")]
+
     [SerializeField] private GameObject previewPanel;
     [SerializeField] private RectTransform previewBoardContainer;
     [SerializeField] private GameObject previewCellPrefab;
@@ -47,9 +47,14 @@ public class DecisionTreeUIController : MonoBehaviour
     [SerializeField] private GameObject graphSettingsPanel;
     [SerializeField] private GameObject settingsPanel;
     [SerializeField] private TMP_Dropdown languageDropdown;
+    [SerializeField] private TMP_Dropdown resolutionDropdown;
+    [SerializeField] private Toggle fullScreenToggle;
 
     private readonly List<GameObject> previewCells = new List<GameObject>();
     private readonly List<GameObject> previewBlocks = new List<GameObject>();
+
+    [SerializeField] private GameObject previewExitPrefab;
+    private GameObject currentPreviewExit;
 
     public event Action OnGenerateClicked;
     public event Action OnCreateBlockClicked;
@@ -68,6 +73,7 @@ public class DecisionTreeUIController : MonoBehaviour
         columnsRemoveButton?.onClick.AddListener(() => ChangeColumns(-1));
 
         generateGraphButton?.onClick.AddListener(() => OnGenerateClicked?.Invoke());
+        generateGraphButton?.onClick.AddListener(() => CloseBoardConfigPanel());
         createBlockButton?.onClick.AddListener(() => OnCreateBlockClicked?.Invoke());
         deleteBlockButton?.onClick.AddListener(() => OnDeleteBlockClicked?.Invoke());
 
@@ -94,11 +100,19 @@ public class DecisionTreeUIController : MonoBehaviour
         closePreviewButton.onClick.AddListener(() => HidePreview());
 
         languageDropdown.onValueChanged.AddListener(OnLanguageDropdownChanged);
+        resolutionDropdown.onValueChanged.AddListener(OnResolutionDropdownChanged);
+        fullScreenToggle.onValueChanged.AddListener(OnFullScreenToggleChanged);
     }
 
     void Start()
     {
+        if (fullScreenToggle != null)
+        {
+            fullScreenToggle.isOn = Screen.fullScreen;
+        }
+
         InitLanguageDropdown();
+        InitResolutionDropdown();
     }
 
     public void Init(DecisionTreeVisualizer v)
@@ -201,8 +215,24 @@ public class DecisionTreeUIController : MonoBehaviour
         int.TryParse(rowsInput.text, out cfg.rows);
         int.TryParse(columnsInput.text, out cfg.columns);
         int.TryParse(winningBlockIdInput.text, out cfg.winningBlockId);
-        int.TryParse(winningXInput.text, out cfg.winningX);
-        int.TryParse(winningYInput.text, out cfg.winningY);
+        if (int.TryParse(winningXInput.text, out int wx))
+        {
+            if (wx < 0 || wx >= cfg.columns)
+            {
+                wx = 0;
+                winningXInput.text = "0";
+            }
+            cfg.winningX = wx;
+        }
+        if (int.TryParse(winningYInput.text, out int wy))
+        {
+            if (wy < 0 || wy >= cfg.rows)
+            {
+                wy = 0;
+                winningYInput.text = "0";
+            }
+            cfg.winningY = wy;
+        }
         int.TryParse(exitWidthInput.text, out cfg.exitWidth);
 
         cfg.pinsEnabled = pinsToggle.isOn;
@@ -244,13 +274,27 @@ public class DecisionTreeUIController : MonoBehaviour
     }
 
     public void HidePreview()
-    {
+    {   
+        Transform boardVisualize = previewPanel.transform.Find("BoardVisualize");
+
+        if (boardVisualize != null)
+        {
+            for (int i = boardVisualize.childCount - 1; i >= 0; i--)
+            {
+                GameObject child = boardVisualize.GetChild(i).gameObject;
+
+                if (child.name == "Winning(Clone)")
+                {
+                    Destroy(child);
+                }
+            }
+        }
+
         previewPanel.SetActive(false);
     }
 
     public void DrawPreviewBoard(Board board)
     {
-        // очистка
         foreach (var go in previewCells) Destroy(go);
         foreach (var go in previewBlocks) Destroy(go);
         previewCells.Clear();
@@ -264,7 +308,6 @@ public class DecisionTreeUIController : MonoBehaviour
 
         if (rows <= 0 || cols <= 0) return;
 
-        // === КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ===
         float cellSize = Mathf.Min(width / cols, height / rows);
 
         float gridWidth  = cellSize * cols;
@@ -291,7 +334,6 @@ public class DecisionTreeUIController : MonoBehaviour
         if (previewPanel != null && !previewPanel.activeSelf)
             previewPanel.SetActive(true);
 
-        // === клетки ===
         for (int y = 0; y < rows; y++)
         {
             for (int x = 0; x < cols; x++)
@@ -317,7 +359,6 @@ public class DecisionTreeUIController : MonoBehaviour
             }
         }
 
-        // === блоки ===
         foreach (var block in board.Blocks)
         {
             GameObject blockGO = Instantiate(previewBlockPrefab, previewBoardContainer);
@@ -356,11 +397,25 @@ public class DecisionTreeUIController : MonoBehaviour
 
             previewBlocks.Add(blockGO);
         }
+
+        //
+        currentPreviewExit = Instantiate(previewExitPrefab, previewBoardContainer);
+        var exitRect = currentPreviewExit.GetComponent<RectTransform>();
+        
+        exitRect.anchorMin = Vector2.zero;
+        exitRect.anchorMax = Vector2.zero;
+        exitRect.pivot = Vector2.zero;
+        
+        exitRect.sizeDelta = new Vector2(cellSize, cellSize);
+        
+        exitRect.anchoredPosition = new Vector2(
+            offsetX + (float)board.WinningX * cellSize,
+            offsetY + (float)board.WinningY * cellSize
+        );
+        
+        exitRect.SetAsLastSibling();
+        //
     }
-
-
-
-
 
     void Update()
     {
@@ -429,7 +484,7 @@ public class DecisionTreeUIController : MonoBehaviour
         SetPanelState(settingsPanel, false);
         
         if (previewPanel != null)
-            previewPanel.SetActive(false);
+            HidePreview();
     }
 
     private bool IsTyping()
@@ -458,6 +513,63 @@ public class DecisionTreeUIController : MonoBehaviour
         languageDropdown.RefreshShownValue();
 
         languageDropdown.onValueChanged.AddListener(OnLanguageDropdownChanged);
+    }
+
+    private void CloseBoardConfigPanel()
+    {
+        SetPanelState(configPanel, false);
+    }
+
+    private Resolution[] filteredResolutions;
+
+    private void InitResolutionDropdown()
+    {
+        if (resolutionDropdown == null) return;
+
+        resolutionDropdown.ClearOptions();
+        
+        Resolution[] allResolutions = Screen.resolutions;
+        List<string> options = new List<string>();
+        List<Resolution> uniqueResolutions = new List<Resolution>();
+
+        int currentResIndex = 0;
+        for (int i = 0; i < allResolutions.Length; i++)
+        {
+            string option = allResolutions[i].width + " x " + allResolutions[i].height;
+            
+            if (!options.Contains(option))
+            {
+                options.Add(option);
+                uniqueResolutions.Add(allResolutions[i]);
+            }
+
+            if (allResolutions[i].width == Screen.currentResolution.width &&
+                allResolutions[i].height == Screen.currentResolution.height)
+            {
+                currentResIndex = options.Count - 1;
+            }
+        }
+
+        filteredResolutions = uniqueResolutions.ToArray();
+        resolutionDropdown.AddOptions(options);
+        resolutionDropdown.value = currentResIndex;
+        resolutionDropdown.RefreshShownValue();
+    }
+
+    private void OnFullScreenToggleChanged(bool isFull)
+    {
+        Screen.fullScreen = isFull;
+    }
+
+    private void OnResolutionDropdownChanged(int index)
+    {
+        if (filteredResolutions == null || index >= filteredResolutions.Length) return;
+
+        Resolution res = filteredResolutions[index];
+        
+        bool isFull = fullScreenToggle != null ? fullScreenToggle.isOn : Screen.fullScreen;
+        
+        Screen.SetResolution(res.width, res.height, isFull);
     }
 
 }

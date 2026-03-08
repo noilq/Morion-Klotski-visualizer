@@ -4,7 +4,7 @@ using UnityEngine;
 [RequireComponent(typeof(TMP_Text))]
 public class LocalizedText : MonoBehaviour
 {
-    [SerializeField] private string localizationKey;
+    [SerializeField] public string localizationKey;
 
     private TMP_Text _text;
 
@@ -30,8 +30,21 @@ public class LocalizedText : MonoBehaviour
             LocalizationManager.Instance.OnLanguageChanged -= UpdateText;
     }
 
+    //f ck this sh t i hate it with my whole heart
     private void UpdateText()
     {
         _text.text = LocalizationManager.Instance.Get(localizationKey);
+    }
+
+    private void Awake() 
+    {
+        _text = GetComponent<TMP_Text>();
+    }
+
+    public void SetKey(string newKey)
+    {
+        localizationKey = newKey;
+        if (_text == null) _text = GetComponent<TMP_Text>();
+        UpdateText();
     }
 }

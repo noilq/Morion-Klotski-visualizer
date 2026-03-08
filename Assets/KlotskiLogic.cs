@@ -85,9 +85,13 @@ namespace KlotskiDecisionTree
             if (!WinningBlockId.HasValue || !WinningX.HasValue || !WinningY.HasValue) return false;
             var winningBlock = Blocks.FirstOrDefault(b => b.Id == WinningBlockId.Value);
             if (winningBlock == null) return false;
-            return winningBlock.X == WinningX.Value && winningBlock.Y == WinningY.Value;
-        }
 
+            bool xOverlap = WinningX.Value >= winningBlock.X && WinningX.Value < winningBlock.X + winningBlock.Width;
+            bool yOverlap = WinningY.Value >= winningBlock.Y && WinningY.Value < winningBlock.Y + winningBlock.Height;
+
+            return xOverlap && yOverlap;
+        }
+        
         private bool IsAreaFree(int x, int y, int width, int height, Block movingBlock)
         {
             if (x < 0 || y < 0 || (x + width > Columns && !(x == WinningX && y == WinningY && movingBlock.Id == WinningBlockId)) ||

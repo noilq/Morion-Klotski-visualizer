@@ -35,8 +35,23 @@ public class LocalizationManager : MonoBehaviour
         {
             CurrentLanguage = (Language)PlayerPrefs.GetInt(LanguagePrefKey);
         }
+        else 
+        {
+            CurrentLanguage = GetSystemLanguage();
+        }
 
         LoadLanguage(CurrentLanguage);
+    }
+
+    private Language GetSystemLanguage()
+    {
+        if (Application.systemLanguage == SystemLanguage.Czech)
+        {
+            return Language.Czech;
+        }
+
+        //eng by default
+        return Language.English;
     }
 
     public void SetLanguage(Language language)
@@ -81,6 +96,13 @@ public class LocalizationManager : MonoBehaviour
                 { "max_velocity", "Max velocity" },
                 { "velocity_treshold", "Velocity treshold" },
                 { "tip", "[LMB] To view specific node state \n[RMB] To move camera \n[Mouse wheel] To distance camera\n[Z] To open graph settings panel \n[X] To open board config panel \n[C] To open regular settings panel \n[Q] To close all panels\n[F] To emergency clear graph" },
+                { "cursor_mode_create_first", "Select first tile"},
+                { "cursor_mode_create_second", "Select second tile"},
+                { "cursor_mode_delete", "Select block to delete"},
+                { "cursor_mode_select_win", "Select winning tile"},
+                { "select_winning_tile", "Select winning tile"},
+                { "resolution", "Resolution"},
+                { "full_screen", "Full screen"},
             },
 
             Language.Czech => new Dictionary<string, string>
@@ -99,6 +121,13 @@ public class LocalizationManager : MonoBehaviour
                 { "max_velocity", "Max rychlost" },
                 { "velocity_treshold", "Práh rychlosti" },
                 { "tip", "[Levé tlačítko myši] Pro zobrazení stavu konkrétního uzlu \n[Pravé tlačítko myši] Pro pohyb kamerou \n[Kolečko myši] Pro oddálení kamery \n[Z] Pro otevření panelu nastavení grafu \n[X] Pro otevření panelu konfigurace desky \n[C] Pro otevření panelu běžných nastavení \n[Q] Pro zavření všech panelů\n[F] Vymazat graf v případě potřeby" },
+                { "cursor_mode_create_first", "Vyberte první pozici"},
+                { "cursor_mode_create_second", "Vyberte druhou pozici"},
+                { "cursor_mode_delete", "Vyberte blok k odstranění"},
+                { "cursor_mode_select_win", "Vyberte vítěznou pozici"},
+                { "select_winning_tile", "Vybrat pozice vítězů"},
+                { "resolution", "Rozlišení"},
+                { "full_screen", "Celá obrazovka"},
             },
 
             _ => null
