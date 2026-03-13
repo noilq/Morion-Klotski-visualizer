@@ -330,6 +330,13 @@ public class DecisionTreeVisualizer : MonoBehaviour
 
     private void OnGenerateGraph()
     {   
+        boardConfig.blocks.RemoveAll(block =>
+            block.x < 0 ||
+            block.y < 0 ||
+            block.x + block.width > boardConfig.columns ||
+            block.y + block.height > boardConfig.rows
+        );
+
         if (!ValidateBoardConfig(out var errors))
         {
             ErrorPopup.Instance?.Show("Errors:\n" + string.Join("\n", errors));
@@ -880,6 +887,11 @@ public class DecisionTreeVisualizer : MonoBehaviour
 
         int rows = boardConfig.rows;
         int cols = boardConfig.columns;
+
+        if (boardConfig.blocks == null)
+        boardConfig.blocks = new List<BlockConfig>();
+
+        
 
         if (boardConfig.blocks == null || boardConfig.blocks.Count < 2)
         {
